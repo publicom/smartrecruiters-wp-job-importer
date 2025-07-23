@@ -1,0 +1,31 @@
+.sr-container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.sr-job-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+.sr-job-card {
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 6px;
+    background: #fff;
+}
+.sr-job-card h3 {
+    margin-top: 0;
+}
+.btn-apply {
+    display: inline-block;
+    background: #000;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+}
+.sr-job-single h1 {
+    margin-bottom: 15px;
+}

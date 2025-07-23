@@ -1,76 +1,88 @@
 # SmartRecruiters Job Importer for WordPress
 
 A WordPress plugin that imports job postings from the [SmartRecruiters API](https://developers.smartrecruiters.com/docs/endpoints) into a **Custom Post Type** (`SR Jobs`).  
-Perfect for creating an SEO-friendly **Career Page** with **Elementor templates** and dynamic fields.
+Ideal for creating an SEO-friendly **Career Page** with Elementor or fallback templates.
 
 ---
 
 ## ✅ Features
-
-- Fetch jobs from SmartRecruiters API and store them as **custom posts**.
-- Creates a custom post type: **SR Jobs**.
-- Automatically saves key fields as **Custom Fields**:
+- Fetch jobs from SmartRecruiters API and store as **custom posts**.
+- Custom Post Type: **SR Jobs**.
+- Auto-save key fields as custom fields:
   - `contract_type`
   - `location`
   - `department`
   - `apply_url`
-- Elementor-compatible (Dynamic Tags support).
-- Categories auto-assigned based on job department.
-- Manual import button + cron scheduling (hourly, twice daily, daily).
-- SEO-ready job pages.
-- Easy to style and integrate into any theme.
-
----
-
-## 🔧 Planned Features (Next Version)
-- **Tooltip/help** for API endpoint field in admin settings.
-- **Frontend listing page** with department filtering.
-- **Single job template** optimized for Elementor.
-- Shortcodes for listing and job detail (fallback if Elementor is not used).
+- **Elementor ready**:
+  - Dynamic Tags for all custom fields.
+  - Easily build Single and Archive templates.
+- **Fallback templates included**:
+  - Archive with department filter (JS)
+  - Single job page with Apply button.
+- **Shortcodes**:
+  - `[sr_jobs_list]` → Job listing with filter.
+  - `[sr_job_detail id="123"]` → Single job view.
+- Cron scheduling or manual import.
+- SEO-friendly (each job is a page).
 
 ---
 
 ## 🚀 Installation
-
-1. Download the plugin or clone the repository:
+1. Download or clone the plugin:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/smartrecruiters-wp-job-importer.git
-2. Upload the folder to wp-content/plugins/.
-3. Activate SmartRecruiters Job Importer from your WordPress Plugins menu.
-4. Go to SR Jobs Import in the admin menu:
-  - Set the API endpoint URL (example: https://api.smartrecruiters.com/v1/companies/{company}/postings).
-  - Choose update frequency.
-  - Optionally enable “Delete missing jobs” to keep data in sync.
-5. Click Import Now or wait for the scheduled cron job.
+   git clone https://github.com/publicom/smartrecruiters-wp-job-importer.git
+   ```
+2. Upload to `wp-content/plugins/`.
+3. Activate via **Plugins** in WordPress.
+4. Go to **SR Jobs Import**:
+   - Enter API Endpoint (e.g., `https://api.smartrecruiters.com/v1/companies/{company}/postings`).
+   - Choose update frequency.
+   - Optionally enable “Delete Missing Jobs”.
+5. Click **Import Now** or wait for the cron schedule.
 
-## ✅ Using with Elementor
-- Create a Single Template for the SR Jobs post type.
-- Use Dynamic Fields to display:
-  - Job Description (post_content)
-  - Contract Type (contract_type)
-  - Location (location)
-  - Department (department)
-  - Apply button (apply_url)
+---
 
-- For job listings:
-  - Use Elementor's Archive Template feature.
-  - Or use the Elementor Loop Builder.
- 
+## ✅ Elementor Integration
+- Create a **Single Template** for `SR Jobs`:
+  - Job Description → `post_content`
+  - Contract Type → `contract_type`
+  - Location → `location`
+  - Department → `department`
+  - Apply button → `apply_url`
+- Use Elementor’s **Archive Template** for listings.
+
+---
+
+## ✅ Without Elementor (Fallback)
+- Use built-in templates:
+  - `archive-sr_job.php`
+  - `single-sr_job.php`
+- Or use shortcodes:
+  - `[sr_jobs_list]` → Grid + JS filter by department.
+  - `[sr_job_detail id="123"]`.
+
+---
+
 ## ⚠️ Requirements
 - WordPress 6.x+
 - PHP 7.4+ (tested up to PHP 8.4)
-- Elementor (optional, for templates)
+
+---
 
 ## 🛠 Developer Notes
-- Each job from SmartRecruiters API is stored as a custom post for SEO optimization.
-- All raw job data is stored as meta fields for advanced customization.
+- All SmartRecruiters API fields stored as meta for customization.
+- Fallback templates use Bootstrap-like structure for easy styling.
+
+---
 
 ## 📌 Roadmap
-- Shortcodes for job listing and details.
-- Elementor widgets for drag-and-drop integration.
-- Ability to filter jobs by department or location on the frontend.
+- Elementor widgets for Job Grid and Single Job.
+- AJAX-based filtering and pagination.
+- Settings UI improvements.
 
-## Made with ❤️ by:
-Publicom
-10 Route de Galice, 13100 Aix-en-Provence, France
-www.publicom.fr
+---
+
+### Developed by:
+**Publicom**  
+10 Route de Galice, 13100 Aix-en-Provence, France  
+[www.publicom.fr](https://www.publicom.fr)

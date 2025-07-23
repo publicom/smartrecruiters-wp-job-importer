@@ -1,0 +1,45 @@
+.sr-admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #FDF5EB;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+.sr-admin-header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #000;
+}
+.sr-header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.sr-logo {
+    height: 30px;
+}
+.sr-version {
+    font-size: 14px;
+    font-weight: bold;
+    color: #444;
+}
+.sr-github-link {
+    background: #000;
+    color: #fff;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.sr-tooltip {
+    display: inline-block;
+    background: #999;
+    color: #fff;
+    border-radius: 50%;
+    padding: 0 6px;
+    margin-left: 5px;
+    cursor: help;
+    font-size: 12px;
+}
