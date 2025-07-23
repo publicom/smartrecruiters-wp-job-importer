@@ -85,4 +85,5 @@ Ideal for creating an SEO-friendly **Career Page** with Elementor or fallback te
 ### Developed by:
 **Publicom**  
 10 Route de Galice, 13100 Aix-en-Provence, France  
-[www.publicom.fr](https://www.publicom.fr)
+[www.publicom.fr](https://www.publicom.fr)  
+[Instagram](https://www.instagram.com/agence_publicom/)
