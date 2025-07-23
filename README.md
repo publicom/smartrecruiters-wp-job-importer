@@ -38,7 +38,39 @@ Perfect for creating an SEO-friendly **Career Page** with **Elementor templates*
 2. Upload the folder to wp-content/plugins/.
 3. Activate SmartRecruiters Job Importer from your WordPress Plugins menu.
 4. Go to SR Jobs Import in the admin menu:
-Set the API endpoint URL (example: https://api.smartrecruiters.com/v1/companies/{company}/postings).
-Choose update frequency.
-Optionally enable “Delete missing jobs” to keep data in sync.
+  - Set the API endpoint URL (example: https://api.smartrecruiters.com/v1/companies/{company}/postings).
+  - Choose update frequency.
+  - Optionally enable “Delete missing jobs” to keep data in sync.
 5. Click Import Now or wait for the scheduled cron job.
+
+## ✅ Using with Elementor
+- Create a Single Template for the SR Jobs post type.
+- Use Dynamic Fields to display:
+  - Job Description (post_content)
+  - Contract Type (contract_type)
+  - Location (location)
+  - Department (department)
+  - Apply button (apply_url)
+
+- For job listings:
+  - Use Elementor's Archive Template feature.
+  - Or use the Elementor Loop Builder.
+ 
+## ⚠️ Requirements
+- WordPress 6.x+
+- PHP 7.4+ (tested up to PHP 8.4)
+- Elementor (optional, for templates)
+
+## 🛠 Developer Notes
+- Each job from SmartRecruiters API is stored as a custom post for SEO optimization.
+- All raw job data is stored as meta fields for advanced customization.
+
+## 📌 Roadmap
+- Shortcodes for job listing and details.
+- Elementor widgets for drag-and-drop integration.
+- Ability to filter jobs by department or location on the frontend.
+
+## Made with ❤️ by:
+Publicom
+10 Route de Galice, 13100 Aix-en-Provence, France
+www.publicom.fr
