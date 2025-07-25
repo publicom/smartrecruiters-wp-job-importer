@@ -2,7 +2,7 @@
 /*
 Plugin Name: SmartRecruiters Job Importer
 Description: Import job postings from SmartRecruiters API into a custom post type. Elementor compatible, SEO-ready.
-Version: 2.5.0
+Version: 2.5.1
 Author: Publicom
 Author URI: https://www.publicom.fr
 License: GPL2
@@ -23,10 +23,13 @@ register_deactivation_hook(__FILE__, ['SR_Job_Importer', 'deactivate']);
 // Main Loader
 class SR_Job_Importer {
     public static function activate() {
-        SR_CPT::register_cpt();
-        flush_rewrite_rules();
-    }
+		// 1) Instancie le CPT pour pouvoir appeler sa méthode non-statique
+		$cpt = new SR_CPT();
+		$cpt->register_cpt();
 
+		// 2) Flush des permaliens pour prendre en compte le nouveau CPT
+		flush_rewrite_rules();
+	}
     public static function deactivate() {
         flush_rewrite_rules();
     }

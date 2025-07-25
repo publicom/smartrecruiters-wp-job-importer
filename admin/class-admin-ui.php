@@ -86,7 +86,7 @@ class SR_Admin_UI {
                 <h1>SmartRecruiters Job Importer</h1>
             </div>
             <div class="sr-header-right">
-                <img src="<?php echo plugin_dir_url(__FILE__) . '../assets/img/logo-publicom.svg'; ?>" alt="Publicom Logo" class="sr-logo">
+                <img src="<?php echo plugin_dir_url(__FILE__) . '../assets/img/publicom_logo.svg'; ?>" alt="Publicom Logo" class="sr-logo">
                 <span class="sr-version">v<?php echo esc_html($version); ?></span>
                 <a href="https://github.com/publicom/smartrecruiters-wp-job-importer" target="_blank" class="sr-github-link">View on GitHub</a>
             </div>

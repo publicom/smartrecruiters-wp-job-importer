@@ -1,91 +1,159 @@
 <?php
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class SR_Importer {
     private $option_name = 'srji_settings';
-    private $cron_hook = 'srji_cron_hook';
+    private $cron_hook   = 'srji_cron_hook';
 
     public function __construct() {
-        add_action('admin_post_srji_manual_import', [$this, 'manual_import']);
-        add_action($this->cron_hook, [$this, 'fetch_jobs']);
+        add_action( 'admin_post_srji_manual_import', [ $this, 'manual_import' ] );
+        add_action( $this->cron_hook,              [ $this, 'fetch_jobs' ] );
     }
 
     public function manual_import() {
         $this->fetch_jobs();
-        wp_redirect(admin_url('admin.php?page=sr-jobs-import&import=success'));
+        wp_redirect( admin_url( 'admin.php?page=sr-jobs-import&import=success' ) );
         exit;
     }
 
     public function fetch_jobs() {
-        $options = get_option($this->option_name);
-        $endpoint = esc_url_raw($options['api_url'] ?? '');
-        if (!$endpoint) return;
+        $options  = get_option( $this->option_name );
+        $endpoint = esc_url_raw( $options['api_url'] ?? '' );
+        if ( ! $endpoint ) {
+            return;
+        }
 
-        $response = wp_remote_get($endpoint);
-        if (is_wp_error($response)) return;
+        $response = wp_remote_get( $endpoint );
+        if ( is_wp_error( $response ) ) {
+            return;
+        }
 
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-        if (!isset($data['content'])) return;
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( empty( $data['content'] ) || ! is_array( $data['content'] ) ) {
+            return;
+        }
 
         $existing_ids = [];
 
-        foreach ($data['content'] as $job) {
-            $external_id = $job['id'] ?? '';
-            if (!$external_id) continue;
+        foreach ( $data['content'] as $job ) {
+            // 1. Identifiant externe
+            $external_id = sanitize_text_field( $job['id'] ?? '' );
+            if ( ! $external_id ) {
+                continue;
+            }
 
-            $query = new WP_Query(['post_type' => 'sr_job', 'meta_key' => '_srji_ref', 'meta_value' => $external_id]);
+            // 2. URL de référence (endpoint détail)
+            $ref_url = esc_url_raw( $job['ref'] ?? '' );
 
-            $apply_url = !empty($job['ref']) ? 'https://careers.smartrecruiters.com/' . sanitize_text_field($job['ref']) : '';
+            // 3. Appel à l'endpoint détail pour récupérer applyUrl et description HTML
+            $detail_data = [];
+            if ( $ref_url ) {
+                $detail_resp = wp_remote_get( $ref_url );
+                if ( ! is_wp_error( $detail_resp ) ) {
+                    $detail_data = json_decode( wp_remote_retrieve_body( $detail_resp ), true );
+                }
+            }
 
-            $description = $job['jobAd']['sections']['jobDescription']['text'] ?? '';
-            $requirements = $job['jobAd']['sections']['qualifications']['text'] ?? '';
-            $additional = $job['jobAd']['sections']['additionalInformation']['text'] ?? '';
-            $contract_type = $job['typeOfEmployment'] ?? '';
-            $location = $job['location']['city'] ?? '';
-            $department = $job['department'] ?? '';
+            // 4. Titre
+            $title = wp_strip_all_tags( $job['name'] ?? '' );
 
+            // 5. Type de contrat depuis customField
+            $contract_type = '';
+            if ( ! empty( $job['customField'] ) && is_array( $job['customField'] ) ) {
+                foreach ( $job['customField'] as $cf ) {
+                    if ( ! empty( $cf['fieldLabel'] ) && $cf['fieldLabel'] === 'Contract type' ) {
+                        $contract_type = sanitize_text_field( $cf['valueLabel'] ?? '' );
+                        break;
+                    }
+                }
+            }
+
+            // 6. Rythme depuis typeOfEmployment.label
+            $rythme = sanitize_text_field( $job['typeOfEmployment']['label'] ?? '' );
+
+            // 7. Localisation
+            $location = sanitize_text_field( $job['location']['fullLocation'] ?? '' );
+
+            // 8. Département
+            $department = sanitize_text_field( $job['department']['label'] ?? '' );
+
+            // 9. URL de candidature (applyUrl)
+            $apply_url = esc_url_raw( $detail_data['applyUrl'] ?? '' );
+
+            // 10. Description détaillée HTML
+            $long_description = '';
+            if ( ! empty( $detail_data['jobAd']['sections']['jobDescription']['text'] ) ) {
+                $long_description = wp_kses_post(
+                    $detail_data['jobAd']['sections']['jobDescription']['text']
+                );
+            }
+            // fallback sur summary si jamais
+            if ( ! $long_description && ! empty( $job['summary'] ) ) {
+                $long_description = wp_kses_post( $job['summary'] );
+            }
+
+            // 11. Contenu du post
             $content = '';
-            if ($description) $content .= '<h3>Description</h3>' . wp_kses_post($description);
-            if ($requirements) $content .= '<h3>Requirements</h3>' . wp_kses_post($requirements);
-            if ($additional) $content .= '<h3>Additional Information</h3>' . wp_kses_post($additional);
-            $content .= '<ul>';
-            if ($contract_type) $content .= '<li><strong>Contract:</strong> ' . esc_html($contract_type) . '</li>';
-            if ($location) $content .= '<li><strong>Location:</strong> ' . esc_html($location) . '</li>';
-            if ($department) $content .= '<li><strong>Department:</strong> ' . esc_html($department) . '</li>';
-            $content .= '</ul>';
-            if ($apply_url) $content .= '<p><a href="' . esc_url($apply_url) . '" target="_blank" class="btn-apply">Apply Now</a></p>';
+            if ( $long_description ) {
+                $content = '<h3>Description</h3>' . $long_description;
+            }
 
-            $post_data = [
-                'post_title' => wp_strip_all_tags($job['name'] ?? 'Job'),
-                'post_type' => 'sr_job',
-                'post_status' => 'publish',
-                'post_content' => $content
+            // 12. Recherche ou création du post
+            $query = new WP_Query([
+                'post_type'      => 'sr_job',
+                'meta_key'       => '_srji_ref',
+                'meta_value'     => $external_id,
+                'posts_per_page' => 1,
+            ]);
+
+            $post_args = [
+                'post_title'   => $title,
+                'post_type'    => 'sr_job',
+                'post_status'  => 'publish',
+                'post_content' => $content,
             ];
 
-            if ($query->have_posts()) {
-                $post_data['ID'] = $query->posts[0]->ID;
-                $post_id = wp_update_post($post_data);
+            if ( $query->have_posts() ) {
+                $post_args['ID'] = $query->posts[0]->ID;
+                $post_id = wp_update_post( $post_args );
             } else {
-                $post_id = wp_insert_post($post_data);
-                update_post_meta($post_id, '_srji_ref', $external_id);
+                $post_id = wp_insert_post( $post_args );
+                update_post_meta( $post_id, '_srji_ref', $external_id );
             }
 
-            if (!is_wp_error($post_id)) {
-                update_post_meta($post_id, 'contract_type', $contract_type);
-                update_post_meta($post_id, 'location', $location);
-                update_post_meta($post_id, 'department', $department);
-                update_post_meta($post_id, 'apply_url', esc_url($apply_url));
-
-                if ($department) wp_set_post_terms($post_id, [$department], 'category', true);
-                $existing_ids[] = $external_id;
+            if ( is_wp_error( $post_id ) ) {
+                continue;
             }
+
+            // 13. Mapping vers les meta natifs
+            update_post_meta( $post_id, 'sr_job_ref_url',          $ref_url );
+            update_post_meta( $post_id, 'sr_job_apply_url',        $apply_url );
+            update_post_meta( $post_id, 'sr_job_contract_type',    $contract_type );
+            update_post_meta( $post_id, 'sr_job_rythme',           $rythme );
+            update_post_meta( $post_id, 'sr_job_location',         $location );
+            wp_set_post_terms( $post_id, [ $department ], 'sr_department', true );
+            update_post_meta( $post_id, 'sr_job_long_description', $long_description );
+
+            // taxonomie catégorie (optionnel)
+            if ( $department ) {
+                wp_set_post_terms( $post_id, [ $department ], 'category', true );
+            }
+
+            $existing_ids[] = $external_id;
         }
 
-        if (!empty($options['delete_missing']) && !empty($existing_ids)) {
-            $posts = get_posts(['post_type' => 'sr_job', 'numberposts' => -1]);
-            foreach ($posts as $p) {
-                if (!in_array(get_post_meta($p->ID, '_srji_ref', true), $existing_ids)) wp_trash_post($p->ID);
+        // 14. Suppression des jobs manquants
+        if ( ! empty( $options['delete_missing'] ) && ! empty( $existing_ids ) ) {
+            $all = get_posts([ 'post_type' => 'sr_job', 'numberposts' => -1 ]);
+            foreach ( $all as $p ) {
+                $ref = get_post_meta( $p->ID, '_srji_ref', true );
+                if ( ! in_array( $ref, $existing_ids, true ) ) {
+                    wp_trash_post( $p->ID );
+                }
             }
         }
     }
 }
+
+// Instanciation
+new SR_Importer();
