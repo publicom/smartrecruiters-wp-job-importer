@@ -7,13 +7,25 @@ class SR_Admin_UI {
     public function __construct() {
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
-        add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_action('wp_ajax_srji_refresh_departments', [$this, 'refresh_departments']); // AJAX pour refresh départements
     }
 
-    public function enqueue_styles() {
+    /**
+     * Enqueue CSS + JS pour l'admin
+     */
+    public function enqueue_assets() {
         wp_enqueue_style('sr-admin-style', plugin_dir_url(__FILE__) . 'css/admin-style.css');
+        wp_enqueue_script('sr-admin-js', plugin_dir_url(__FILE__) . 'js/admin.js', ['jquery'], false, true);
+        wp_localize_script('sr-admin-js', 'srjiAjax', [
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('srji_nonce')
+        ]);
     }
 
+    /**
+     * Ajoute la page admin
+     */
     public function add_admin_menu() {
         add_menu_page(
             'SmartRecruiters Job Importer',
@@ -25,6 +37,9 @@ class SR_Admin_UI {
         );
     }
 
+    /**
+     * Déclare les réglages
+     */
     public function register_settings() {
         register_setting('srji_settings_group', $this->option_name);
 
@@ -49,68 +64,59 @@ class SR_Admin_UI {
 
         // Champ pour sélectionner les départements à importer
         add_settings_field('allowed_departments', 'Select Departments to Import', [$this, 'departments_field'], 'sr-jobs-import', 'srji_dept_section');
-
     }
 
+    /**
+     * Champ pour afficher les départements avec checkboxes
+     */
     public function departments_field() {
-    $options = get_option($this->option_name);
-    $allowed = $options['allowed_departments'] ?? [];
-    $departments = get_option('srji_departments_list', []);
+        $options = get_option($this->option_name);
+        $allowed = $options['allowed_departments'] ?? [];
+        $departments = get_option('srji_departments_list', []);
 
-    echo '<div id="srji-departments-container">';
-    if (empty($departments)) {
-        echo '<p>No departments found. Click refresh to load from API.</p>';
-    } else {
-        foreach ($departments as $dept) {
-            $checked = in_array($dept, $allowed) ? 'checked' : '';
-            echo '<label><input type="checkbox" name="' . esc_attr($this->option_name) . '[allowed_departments][]" value="' . esc_attr($dept) . '" ' . $checked . '> ' . esc_html($dept) . '</label><br>';
+        echo '<div id="srji-departments-container">';
+        if (empty($departments)) {
+            echo '<p>No departments found. Click refresh to load from API.</p>';
+        } else {
+            foreach ($departments as $dept) {
+                $checked = in_array($dept, $allowed) ? 'checked' : '';
+                echo '<label><input type="checkbox" name="' . esc_attr($this->option_name) . '[allowed_departments][]" value="' . esc_attr($dept) . '" ' . $checked . '> ' . esc_html($dept) . '</label><br>';
+            }
         }
-    }
-    echo '</div>';
-    echo '<button type="button" class="button" id="srji-refresh-departments">Refresh Departments</button>';
-}
-
-public function __construct() {
-    add_action('admin_menu', [$this, 'add_admin_menu']);
-    add_action('admin_init', [$this, 'register_settings']);
-    add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
-    add_action('wp_ajax_srji_refresh_departments', [$this, 'refresh_departments']);
-}
-
-public function enqueue_styles() {
-    wp_enqueue_style('sr-admin-style', plugin_dir_url(__FILE__) . 'css/admin-style.css');
-    wp_enqueue_script('sr-admin-js', plugin_dir_url(__FILE__) . 'js/admin.js', ['jquery'], false, true);
-    wp_localize_script('sr-admin-js', 'srjiAjax', [
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce'   => wp_create_nonce('srji_nonce')
-    ]);
-}
-
-public function refresh_departments() {
-    check_ajax_referer('srji_nonce', 'nonce');
-
-    $options = get_option($this->option_name);
-    $endpoint = $options['api_url'] ?? '';
-    if (!$endpoint) wp_send_json_error('API URL not configured.');
-
-    $response = wp_remote_get($endpoint);
-    if (is_wp_error($response)) wp_send_json_error('API request failed.');
-
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-    if (!isset($data['content'])) wp_send_json_error('Invalid API response.');
-
-    $departments = [];
-    foreach ($data['content'] as $job) {
-        if (!empty($job['department']) && !in_array($job['department'], $departments)) {
-            $departments[] = sanitize_text_field($job['department']);
-        }
+        echo '</div>';
+        echo '<button type="button" class="button" id="srji-refresh-departments">Refresh Departments</button>';
     }
 
-    update_option('srji_departments_list', $departments);
-    wp_send_json_success($departments);
-}
+    /**
+     * AJAX pour rafraîchir la liste des départements depuis l'API SmartRecruiters
+     */
+    public function refresh_departments() {
+        check_ajax_referer('srji_nonce', 'nonce');
 
+        $options = get_option($this->option_name);
+        $endpoint = $options['api_url'] ?? '';
+        if (!$endpoint) wp_send_json_error('API URL not configured.');
 
+        $response = wp_remote_get($endpoint);
+        if (is_wp_error($response)) wp_send_json_error('API request failed.');
+
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        if (!isset($data['content'])) wp_send_json_error('Invalid API response.');
+
+        $departments = [];
+        foreach ($data['content'] as $job) {
+            if (!empty($job['department']) && !in_array($job['department'], $departments)) {
+                $departments[] = sanitize_text_field($job['department']);
+            }
+        }
+
+        update_option('srji_departments_list', $departments);
+        wp_send_json_success($departments);
+    }
+
+    /**
+     * Affiche les champs avec tooltip
+     */
     public function tooltip_text_field($args) {
         $options = get_option($this->option_name);
         printf('<input type="text" name="%s[%s]" value="%s" class="regular-text"/> <span class="sr-tooltip" title="%s">?</span>',
@@ -144,8 +150,13 @@ public function refresh_departments() {
         echo '<span class="sr-tooltip" title="' . esc_attr($args['tooltip']) . '">?</span>';
     }
 
+    /**
+     * Page de configuration
+     */
     public function settings_page() {
-        $version = '2.5.0';
+        $plugin_data = get_plugin_data(plugin_dir_path(__FILE__) . '../smartrecruiters-job-importer.php');
+        $version = $plugin_data['Version'];
+
         ?>
         <div class="sr-admin-header">
             <div class="sr-header-left">
