@@ -18,6 +18,7 @@ class SR_Importer {
 
     public function fetch_jobs() {
         $options  = get_option( $this->option_name );
+        $allowed_departments = $options['allowed_departments'] ?? [];
         $endpoint = esc_url_raw( $options['api_url'] ?? '' );
         if ( ! $endpoint ) {
             return;
@@ -76,6 +77,9 @@ class SR_Importer {
 
             // 8. Département
             $department = sanitize_text_field( $job['department']['label'] ?? '' );
+            if (!empty($allowed_departments) && !in_array($department, $allowed_departments)) {
+            continue; // Skip this job
+            }
 
             // 9. URL de candidature (applyUrl)
             $apply_url = esc_url_raw( $detail_data['applyUrl'] ?? '' );

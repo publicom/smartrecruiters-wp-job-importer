@@ -43,7 +43,73 @@ class SR_Admin_UI {
             'name' => 'delete_missing',
             'tooltip' => 'Enable to remove jobs from WordPress if they no longer exist in SmartRecruiters.'
         ]);
+
+        // Section pour les départements
+        add_settings_section('srji_dept_section', 'Departments', null, 'sr-jobs-import');
+
+        // Champ pour sélectionner les départements à importer
+        add_settings_field('allowed_departments', 'Select Departments to Import', [$this, 'departments_field'], 'sr-jobs-import', 'srji_dept_section');
+
     }
+
+    public function departments_field() {
+    $options = get_option($this->option_name);
+    $allowed = $options['allowed_departments'] ?? [];
+    $departments = get_option('srji_departments_list', []);
+
+    echo '<div id="srji-departments-container">';
+    if (empty($departments)) {
+        echo '<p>No departments found. Click refresh to load from API.</p>';
+    } else {
+        foreach ($departments as $dept) {
+            $checked = in_array($dept, $allowed) ? 'checked' : '';
+            echo '<label><input type="checkbox" name="' . esc_attr($this->option_name) . '[allowed_departments][]" value="' . esc_attr($dept) . '" ' . $checked . '> ' . esc_html($dept) . '</label><br>';
+        }
+    }
+    echo '</div>';
+    echo '<button type="button" class="button" id="srji-refresh-departments">Refresh Departments</button>';
+}
+
+public function __construct() {
+    add_action('admin_menu', [$this, 'add_admin_menu']);
+    add_action('admin_init', [$this, 'register_settings']);
+    add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
+    add_action('wp_ajax_srji_refresh_departments', [$this, 'refresh_departments']);
+}
+
+public function enqueue_styles() {
+    wp_enqueue_style('sr-admin-style', plugin_dir_url(__FILE__) . 'css/admin-style.css');
+    wp_enqueue_script('sr-admin-js', plugin_dir_url(__FILE__) . 'js/admin.js', ['jquery'], false, true);
+    wp_localize_script('sr-admin-js', 'srjiAjax', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce'   => wp_create_nonce('srji_nonce')
+    ]);
+}
+
+public function refresh_departments() {
+    check_ajax_referer('srji_nonce', 'nonce');
+
+    $options = get_option($this->option_name);
+    $endpoint = $options['api_url'] ?? '';
+    if (!$endpoint) wp_send_json_error('API URL not configured.');
+
+    $response = wp_remote_get($endpoint);
+    if (is_wp_error($response)) wp_send_json_error('API request failed.');
+
+    $data = json_decode(wp_remote_retrieve_body($response), true);
+    if (!isset($data['content'])) wp_send_json_error('Invalid API response.');
+
+    $departments = [];
+    foreach ($data['content'] as $job) {
+        if (!empty($job['department']) && !in_array($job['department'], $departments)) {
+            $departments[] = sanitize_text_field($job['department']);
+        }
+    }
+
+    update_option('srji_departments_list', $departments);
+    wp_send_json_success($departments);
+}
+
 
     public function tooltip_text_field($args) {
         $options = get_option($this->option_name);
