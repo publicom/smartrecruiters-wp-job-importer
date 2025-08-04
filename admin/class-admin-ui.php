@@ -27,14 +27,14 @@ class SR_Admin_UI {
      * Ajoute la page admin
      */
     public function add_admin_menu() {
-        add_menu_page(
-            'SmartRecruiters Job Importer',
-            'SR Jobs Import',
-            'manage_options',
-            'sr-jobs-import',
-            [$this, 'settings_page'],
-            'dashicons-update'
-        );
+     add_submenu_page(
+        'edit.php?post_type=sr_job', // Parent = CPT SR Jobs
+        'SmartRecruiters Settings',  // Title de la page
+        'Paramètres',                // Label du sous-menu
+        'manage_options',
+        'sr-jobs-import',
+        [$this, 'settings_page']
+    );
     }
 
     /**
