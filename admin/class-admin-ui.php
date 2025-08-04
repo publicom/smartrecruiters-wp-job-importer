@@ -105,10 +105,11 @@ class SR_Admin_UI {
 
         $departments = [];
         foreach ($data['content'] as $job) {
-            if (!empty($job['department']) && !in_array($job['department'], $departments)) {
-                $departments[] = sanitize_text_field($job['department']);
+            if (!empty($job['department']['label']) && !in_array($job['department']['label'], $departments)) {
+                $departments[] = sanitize_text_field($job['department']['label']);
             }
         }
+
 
         update_option('srji_departments_list', $departments);
         wp_send_json_success($departments);
