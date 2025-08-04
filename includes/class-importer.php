@@ -84,25 +84,23 @@ class SR_Importer {
             // 9. URL de candidature (applyUrl)
             $apply_url = esc_url_raw( $detail_data['applyUrl'] ?? '' );
 
-            // 10. Description détaillée HTML
-            $long_description = '';
-            if ( ! empty( $detail_data['jobAd']['sections']['jobDescription']['text'] ) ) {
-                $long_description = wp_kses_post(
-                    $detail_data['jobAd']['sections']['jobDescription']['text']
-                );
-            }
-            // fallback sur summary si jamais
-            if ( ! $long_description && ! empty( $job['summary'] ) ) {
-                $long_description = wp_kses_post( $job['summary'] );
-            }
-
-            // 11. Contenu du post
+            // 10. Construction du contenu complet depuis les sections
             $content = '';
-            if ( $long_description ) {
-                $content = '<h3>Description</h3>' . $long_description;
+            if ( ! empty( $detail_data['jobAd']['sections'] ) && is_array( $detail_data['jobAd']['sections'] ) ) {
+                foreach ( $detail_data['jobAd']['sections'] as $section ) {
+                    if ( ! empty( $section['title'] ) && ! empty( $section['text'] ) ) {
+                        $content .= '<h3>' . esc_html( $section['title'] ) . '</h3>';
+                        $content .= wp_kses_post( $section['text'] );
+                    }
+                }
+            }
+            // fallback si pas de sections
+            if ( empty( $content ) && ! empty( $job['summary'] ) ) {
+                $content = wp_kses_post( $job['summary'] );
             }
 
-            // 12. Recherche ou création du post
+
+            // 11. Recherche ou création du post
             $query = new WP_Query([
                 'post_type'      => 'sr_job',
                 'meta_key'       => '_srji_ref',
@@ -129,7 +127,7 @@ class SR_Importer {
                 continue;
             }
 
-            // 13. Mapping vers les meta natifs
+            // 12. Mapping vers les meta natifs
             update_post_meta( $post_id, 'sr_job_ref_url',          $ref_url );
             update_post_meta( $post_id, 'sr_job_apply_url',        $apply_url );
             update_post_meta( $post_id, 'sr_job_contract_type',    $contract_type );
@@ -146,7 +144,7 @@ class SR_Importer {
             $existing_ids[] = $external_id;
         }
 
-        // 14. Suppression des jobs manquants
+        // 13. Suppression des jobs manquants
         if ( ! empty( $options['delete_missing'] ) && ! empty( $existing_ids ) ) {
             $all = get_posts([ 'post_type' => 'sr_job', 'numberposts' => -1 ]);
             foreach ( $all as $p ) {
