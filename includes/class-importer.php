@@ -24,7 +24,6 @@ class SR_Importer {
             return;
         }
 
-        // 1. Récupération du flux principal
         $response = wp_remote_get( $endpoint );
         if ( is_wp_error( $response ) ) {
             return;
@@ -41,7 +40,6 @@ class SR_Importer {
             $external_id = sanitize_text_field( $job['id'] ?? '' );
             if ( ! $external_id ) continue;
 
-            // 3. Endpoint détail
             $ref_url = esc_url_raw( $job['ref'] ?? '' );
             $detail_data = [];
             if ( $ref_url ) {
@@ -52,8 +50,6 @@ class SR_Importer {
             }
 
             $title = wp_strip_all_tags( $job['name'] ?? '' );
-
-            // Contrat
             $contract_type = '';
             if ( ! empty( $job['customField'] ) && is_array( $job['customField'] ) ) {
                 foreach ( $job['customField'] as $cf ) {
@@ -71,9 +67,22 @@ class SR_Importer {
             if ( ! empty( $allowed_departments ) && ! in_array( $department, $allowed_departments ) ) continue;
 
             $apply_url = esc_url_raw( $detail_data['applyUrl'] ?? '' );
+
+            // ✅ Récupération contenu existant (pour préserver vidéos si besoin)
+            $existing_content = '';
+            $query = new WP_Query([
+                'post_type'      => 'sr_job',
+                'meta_key'       => '_srji_ref',
+                'meta_value'     => $external_id,
+                'posts_per_page' => 1,
+            ]);
+            if ( $query->have_posts() ) {
+                $existing_content = $query->posts[0]->post_content;
+            }
+
+            // ✅ Construction du contenu
             $content = '';
 
-            // Sections principales
             if ( ! empty( $detail_data['jobAd']['sections'] ) && is_array( $detail_data['jobAd']['sections'] ) ) {
                 foreach ( $detail_data['jobAd']['sections'] as $section ) {
                     if ( ! empty( $section['title'] ) && ! empty( $section['text'] ) ) {
@@ -83,36 +92,63 @@ class SR_Importer {
                 }
             }
 
-            // ✅ Ajout des vidéos (dans jobAd.sections.videos)
+            // ✅ Gestion vidéos
             $videos = $detail_data['jobAd']['sections']['videos'] ?? [];
-            if ( ! empty( $videos['urls'] ) && is_array( $videos['urls'] ) ) {
+            $video_html = '';
+
+            if ( ! empty( $videos['urls'] ) && is_array( $videos['urls'] ) && count($videos['urls']) > 0 ) {
                 if ( ! empty( $videos['title'] ) ) {
-                    $content .= '<h3>' . esc_html( $videos['title'] ) . '</h3>';
+                    $video_html .= '<h3>' . esc_html( $videos['title'] ) . '</h3>';
                 }
+
                 foreach ( $videos['urls'] as $video_url ) {
                     $video_id = '';
 
+                    // Parsing standard
                     if ( strpos( $video_url, 'youtube.com' ) !== false ) {
-                        parse_str( parse_url( $video_url, PHP_URL_QUERY ), $params );
-                        $video_id = esc_attr( $params['v'] ?? '' );
+                        $parsed_query = parse_url( $video_url, PHP_URL_QUERY );
+                        if ( $parsed_query ) {
+                            parse_str( $parsed_query, $params );
+                            $video_id = $params['v'] ?? '';
+                        }
                     } elseif ( strpos( $video_url, 'youtu.be' ) !== false ) {
                         $video_id = basename( parse_url( $video_url, PHP_URL_PATH ) );
                     }
 
+                    // ✅ Fallback regex
+                    if ( empty( $video_id ) && preg_match( '/(?:v=|youtu\\.be\\/)([a-zA-Z0-9_-]{11})/', $video_url, $matches ) ) {
+                        $video_id = $matches[1];
+                    }
+
+                    if ( defined('WP_DEBUG') && WP_DEBUG ) {
+                        error_log( '[SR IMPORT] Job ID: ' . $external_id . ' | Video URL: ' . $video_url . ' | Video ID: ' . $video_id );
+                    }
+
                     if ( $video_id ) {
-                        $content .= '<div class="sr-job-video"><iframe width="560" height="315" src="https://www.youtube.com/embed/' . $video_id . '" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>';
+                        $video_html .= '<div class="sr-job-video"><iframe width="560" height="315" src="https://www.youtube.com/embed/' . esc_attr( $video_id ) . '" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>';
                     } else {
-                        $content .= '<p><a href="' . esc_url( $video_url ) . '" target="_blank">Watch Video</a></p>';
+                        $video_html .= '<p><a href="' . esc_url( $video_url ) . '" target="_blank">Watch Video</a></p>';
                     }
                 }
             }
 
-            // Fallback
+            // ✅ Ajout vidéo si présente, sinon on conserve l'ancienne
+            if ( ! empty( $video_html ) ) {
+                $content .= $video_html;
+            } elseif ( ! empty( $existing_content ) && strpos( $existing_content, '<iframe' ) !== false ) {
+                // Préserve l'ancien bloc vidéo si API ne renvoie rien
+                $content .= $existing_content;
+                if ( defined('WP_DEBUG') && WP_DEBUG ) {
+                    error_log( '[SR IMPORT] Preserved existing video for Job ID: ' . $external_id );
+                }
+            }
+
+            // ✅ Fallback summary
             if ( empty( $content ) && ! empty( $job['summary'] ) ) {
                 $content = wp_kses_post( $job['summary'] );
             }
 
-            // ✅ Autoriser iframe
+            // ✅ Autorisation iframe
             $allowed_tags = wp_kses_allowed_html( 'post' );
             $allowed_tags['iframe'] = [
                 'src' => true,
@@ -125,13 +161,7 @@ class SR_Importer {
 
             $post_content = wp_kses( $content, $allowed_tags );
 
-            // ✅ Suppression avant réinsertion pour forcer la mise à jour
-            $query = new WP_Query([
-                'post_type'      => 'sr_job',
-                'meta_key'       => '_srji_ref',
-                'meta_value'     => $external_id,
-                'posts_per_page' => 1,
-            ]);
+            // ✅ Suppression avant réinsertion
             if ( $query->have_posts() ) {
                 wp_delete_post( $query->posts[0]->ID, true );
             }
@@ -145,7 +175,7 @@ class SR_Importer {
             $post_id = wp_insert_post( $post_args );
             if ( is_wp_error( $post_id ) ) continue;
 
-            // Metas
+            // ✅ Metas
             update_post_meta( $post_id, '_srji_ref', $external_id );
             update_post_meta( $post_id, 'sr_job_ref_url', $ref_url );
             update_post_meta( $post_id, 'sr_job_apply_url', $apply_url );
@@ -161,7 +191,7 @@ class SR_Importer {
             $existing_ids[] = $external_id;
         }
 
-        // Suppression des jobs disparus
+        // ✅ Suppression des jobs disparus
         if ( ! empty( $options['delete_missing'] ) && ! empty( $existing_ids ) ) {
             $all = get_posts([ 'post_type' => 'sr_job', 'numberposts' => -1 ]);
             foreach ( $all as $p ) {
