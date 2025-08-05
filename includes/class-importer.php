@@ -78,7 +78,7 @@ class SR_Importer {
             // 8. Département
             $department = sanitize_text_field( $job['department']['label'] ?? '' );
             if (!empty($allowed_departments) && !in_array($department, $allowed_departments)) {
-            continue; // Skip this job
+                continue; // Skip this job
             }
 
             // 9. URL de candidature (applyUrl)
@@ -94,11 +94,33 @@ class SR_Importer {
                     }
                 }
             }
-            // fallback si pas de sections
+
+            // Ajout des vidéos si disponibles
+            if ( ! empty( $detail_data['videos']['urls'] ) && is_array( $detail_data['videos']['urls'] ) ) {
+                if ( ! empty( $detail_data['videos']['title'] ) ) {
+                    $content .= '<h3>' . esc_html( $detail_data['videos']['title'] ) . '</h3>';
+                }
+                foreach ( $detail_data['videos']['urls'] as $video_url ) {
+                    $video_id = '';
+                    if ( strpos( $video_url, 'youtube.com' ) !== false ) {
+                        parse_str( parse_url( $video_url, PHP_URL_QUERY ), $params );
+                        if ( ! empty( $params['v'] ) ) {
+                            $video_id = esc_attr( $params['v'] );
+                        }
+                    }
+                    if ( $video_id ) {
+                        $content .= '<div class="sr-job-video"><iframe width="560" height="315" src="https://www.youtube.com/embed/' . $video_id . '" frameborder="0" allowfullscreen></iframe></div>';
+                    } else {
+                        // Si ce n'est pas YouTube, on affiche un lien simple
+                        $content .= '<p><a href="' . esc_url( $video_url ) . '" target="_blank">Watch Video</a></p>';
+                    }
+                }
+            }
+
+            // fallback si pas de sections ni vidéos
             if ( empty( $content ) && ! empty( $job['summary'] ) ) {
                 $content = wp_kses_post( $job['summary'] );
             }
-
 
             // 11. Recherche ou création du post
             $query = new WP_Query([
@@ -134,9 +156,7 @@ class SR_Importer {
             update_post_meta( $post_id, 'sr_job_rythme',           $rythme );
             update_post_meta( $post_id, 'sr_job_location',         $location );
             wp_set_post_terms( $post_id, [ $department ], 'sr_department', true );
-            update_post_meta( $post_id, 'sr_job_long_description', $long_description );
 
-            // taxonomie catégorie (optionnel)
             if ( $department ) {
                 wp_set_post_terms( $post_id, [ $department ], 'category', true );
             }
