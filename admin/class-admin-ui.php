@@ -187,3 +187,31 @@ class SR_Admin_UI {
         <?php
     }
 }
+// === Ajouter une metabox pour afficher les vidéos SmartRecruiters ===
+// ✅ Ajoute une metabox pour afficher les vidéos importées
+add_action( 'add_meta_boxes', function() {
+    add_meta_box(
+        'sr_job_videos_box',
+        'Vidéos SmartRecruiters',
+        'sr_display_job_videos',
+        'sr_job',
+        'normal',
+        'default'
+    );
+});
+
+function sr_display_job_videos( $post ) {
+    $videos_json = get_post_meta( $post->ID, 'sr_job_videos', true );
+    $videos = ! empty( $videos_json ) ? json_decode( $videos_json, true ) : [];
+
+    if ( empty( $videos ) ) {
+        echo '<p>Aucune vidéo importée pour ce job.</p>';
+        return;
+    }
+
+    echo '<ul>';
+    foreach ( $videos as $url ) {
+        echo '<li><a href="' . esc_url( $url ) . '" target="_blank">' . esc_html( $url ) . '</a></li>';
+    }
+    echo '</ul>';
+}

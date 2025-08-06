@@ -20,19 +20,13 @@ class SR_Importer {
         $options  = get_option( $this->option_name );
         $allowed_departments = $options['allowed_departments'] ?? [];
         $endpoint = esc_url_raw( $options['api_url'] ?? '' );
-        if ( ! $endpoint ) {
-            return;
-        }
+        if ( ! $endpoint ) return;
 
         $response = wp_remote_get( $endpoint );
-        if ( is_wp_error( $response ) ) {
-            return;
-        }
+        if ( is_wp_error( $response ) ) return;
 
         $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        if ( empty( $data['content'] ) || ! is_array( $data['content'] ) ) {
-            return;
-        }
+        if ( empty( $data['content'] ) || ! is_array( $data['content'] ) ) return;
 
         $existing_ids = [];
 
@@ -68,21 +62,8 @@ class SR_Importer {
 
             $apply_url = esc_url_raw( $detail_data['applyUrl'] ?? '' );
 
-            // ✅ Récupération contenu existant (pour préserver vidéos si besoin)
-            $existing_content = '';
-            $query = new WP_Query([
-                'post_type'      => 'sr_job',
-                'meta_key'       => '_srji_ref',
-                'meta_value'     => $external_id,
-                'posts_per_page' => 1,
-            ]);
-            if ( $query->have_posts() ) {
-                $existing_content = $query->posts[0]->post_content;
-            }
-
-            // ✅ Construction du contenu
+            // ✅ Sections de contenu
             $content = '';
-
             if ( ! empty( $detail_data['jobAd']['sections'] ) && is_array( $detail_data['jobAd']['sections'] ) ) {
                 foreach ( $detail_data['jobAd']['sections'] as $section ) {
                     if ( ! empty( $section['title'] ) && ! empty( $section['text'] ) ) {
@@ -92,55 +73,17 @@ class SR_Importer {
                 }
             }
 
-            // ✅ Gestion vidéos
+            // ✅ Gestion des vidéos (stockage en meta)
+            $videos_urls = [];
             $videos = $detail_data['jobAd']['sections']['videos'] ?? [];
-            $video_html = '';
-
-            if ( ! empty( $videos['urls'] ) && is_array( $videos['urls'] ) && count($videos['urls']) > 0 ) {
-                if ( ! empty( $videos['title'] ) ) {
-                    $video_html .= '<h3>' . esc_html( $videos['title'] ) . '</h3>';
-                }
-
+            if ( ! empty( $videos['urls'] ) && is_array( $videos['urls'] ) ) {
                 foreach ( $videos['urls'] as $video_url ) {
-                    $video_id = '';
-
-                    // Parsing standard
-                    if ( strpos( $video_url, 'youtube.com' ) !== false ) {
-                        $parsed_query = parse_url( $video_url, PHP_URL_QUERY );
-                        if ( $parsed_query ) {
-                            parse_str( $parsed_query, $params );
-                            $video_id = $params['v'] ?? '';
-                        }
-                    } elseif ( strpos( $video_url, 'youtu.be' ) !== false ) {
-                        $video_id = basename( parse_url( $video_url, PHP_URL_PATH ) );
-                    }
-
-                    // ✅ Fallback regex
-                    if ( empty( $video_id ) && preg_match( '/(?:v=|youtu\\.be\\/)([a-zA-Z0-9_-]{11})/', $video_url, $matches ) ) {
-                        $video_id = $matches[1];
-                    }
-
-                    if ( defined('WP_DEBUG') && WP_DEBUG ) {
-                        error_log( '[SR IMPORT] Job ID: ' . $external_id . ' | Video URL: ' . $video_url . ' | Video ID: ' . $video_id );
-                    }
-
-                    if ( $video_id ) {
-                        $video_html .= '<div class="sr-job-video"><iframe width="560" height="315" src="https://www.youtube.com/embed/' . esc_attr( $video_id ) . '" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>';
-                    } else {
-                        $video_html .= '<p><a href="' . esc_url( $video_url ) . '" target="_blank">Watch Video</a></p>';
-                    }
+                    $videos_urls[] = esc_url_raw( $video_url );
                 }
             }
 
-            // ✅ Ajout vidéo si présente, sinon on conserve l'ancienne
-            if ( ! empty( $video_html ) ) {
-                $content .= $video_html;
-            } elseif ( ! empty( $existing_content ) && strpos( $existing_content, '<iframe' ) !== false ) {
-                // Préserve l'ancien bloc vidéo si API ne renvoie rien
-                $content .= $existing_content;
-                if ( defined('WP_DEBUG') && WP_DEBUG ) {
-                    error_log( '[SR IMPORT] Preserved existing video for Job ID: ' . $external_id );
-                }
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[SR IMPORT] Job ID: ' . $external_id . ' | Videos found: ' . count( $videos_urls ) );
             }
 
             // ✅ Fallback summary
@@ -148,7 +91,7 @@ class SR_Importer {
                 $content = wp_kses_post( $job['summary'] );
             }
 
-            // ✅ Autorisation iframe
+            // ✅ Autorisation HTML
             $allowed_tags = wp_kses_allowed_html( 'post' );
             $allowed_tags['iframe'] = [
                 'src' => true,
@@ -162,6 +105,12 @@ class SR_Importer {
             $post_content = wp_kses( $content, $allowed_tags );
 
             // ✅ Suppression avant réinsertion
+            $query = new WP_Query([
+                'post_type'      => 'sr_job',
+                'meta_key'       => '_srji_ref',
+                'meta_value'     => $external_id,
+                'posts_per_page' => 1,
+            ]);
             if ( $query->have_posts() ) {
                 wp_delete_post( $query->posts[0]->ID, true );
             }
@@ -182,6 +131,13 @@ class SR_Importer {
             update_post_meta( $post_id, 'sr_job_contract_type', $contract_type );
             update_post_meta( $post_id, 'sr_job_rythme', $rythme );
             update_post_meta( $post_id, 'sr_job_location', $location );
+
+            // ✅ Sauvegarde vidéos en JSON
+            if ( ! empty( $videos_urls ) ) {
+                update_post_meta( $post_id, 'sr_job_videos', wp_json_encode( $videos_urls ) );
+            } else {
+                delete_post_meta( $post_id, 'sr_job_videos' );
+            }
 
             wp_set_post_terms( $post_id, [ $department ], 'sr_department', true );
             if ( $department ) {
