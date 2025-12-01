@@ -9,6 +9,7 @@ class SR_Admin_UI {
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('wp_ajax_srji_refresh_departments', [$this, 'refresh_departments']); // AJAX pour refresh départements
+        add_action('wp_ajax_srji_manual_import', [$this, 'ajax_manual_import']); // AJAX pour import manuel
     }
 
     /**
@@ -113,6 +114,24 @@ class SR_Admin_UI {
 
         update_option('srji_departments_list', $departments);
         wp_send_json_success($departments);
+        update_option('srji_departments_list', $departments);
+        wp_send_json_success($departments);
+    }
+
+    /**
+     * AJAX pour l'import manuel
+     */
+    public function ajax_manual_import() {
+        check_ajax_referer('srji_nonce', 'nonce');
+
+        if (!class_exists('SR_Importer')) {
+            require_once plugin_dir_path(__FILE__) . '../includes/class-importer.php';
+        }
+
+        $importer = new SR_Importer();
+        $importer->fetch_jobs();
+
+        wp_send_json_success('Import completed successfully.');
     }
 
     /**
@@ -179,10 +198,11 @@ class SR_Admin_UI {
                 ?>
             </form>
             <hr>
-            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <input type="hidden" name="action" value="srji_manual_import">
-                <?php submit_button('Import Now'); ?>
-            </form>
+            <hr>
+            <h2>Manual Import</h2>
+            <p>Click the button below to manually trigger the job import process.</p>
+            <button type="button" class="button button-primary" id="srji-manual-import-btn">Import Now</button>
+            <span id="srji-import-status" style="margin-left: 10px; font-weight: bold;"></span>
         </div>
         <?php
     }

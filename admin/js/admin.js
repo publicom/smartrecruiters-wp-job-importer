@@ -31,4 +31,28 @@ jQuery(document).ready(function ($) {
             }
         });
     });
+
+    // Manual Import Handler
+    $('#srji-manual-import-btn').on('click', function () {
+        var $btn = $(this);
+        var $status = $('#srji-import-status');
+
+        $btn.prop('disabled', true);
+        $status.text('Importing jobs... Please wait.').css('color', '#0073aa');
+
+        $.post(srjiAjax.ajaxurl, {
+            action: 'srji_manual_import',
+            nonce: srjiAjax.nonce
+        }, function (response) {
+            if (response.success) {
+                $status.text('Import completed successfully!').css('color', '#46b450');
+            } else {
+                $status.text('Import failed. Please check logs.').css('color', '#dc3232');
+            }
+            $btn.prop('disabled', false);
+        }).fail(function () {
+            $status.text('Request failed.').css('color', '#dc3232');
+            $btn.prop('disabled', false);
+        });
+    });
 });
