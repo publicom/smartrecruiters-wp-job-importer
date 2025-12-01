@@ -2,7 +2,7 @@
 /*
 Plugin Name: SmartRecruiters Job Importer
 Description: Import job postings from SmartRecruiters API into a custom post type. Elementor compatible, SEO-ready.
-Version: 1.0.0
+Version: 1.0.1
 Author: Publicom
 Author URI: https://www.publicom.fr
 License: GPL2
