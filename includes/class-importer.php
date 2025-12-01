@@ -104,25 +104,48 @@ class SR_Importer {
 
             $post_content = wp_kses( $content, $allowed_tags );
 
-            // ✅ Suppression avant réinsertion
+            // ✅ Update existing or insert new
             $query = new WP_Query([
                 'post_type'      => 'sr_job',
                 'meta_key'       => '_srji_ref',
                 'meta_value'     => $external_id,
-                'posts_per_page' => 1,
+                'posts_per_page' => -1, // Get all duplicates
+                'fields'         => 'ids',
             ]);
+
+            $post_id = 0;
+
             if ( $query->have_posts() ) {
-                wp_delete_post( $query->posts[0]->ID, true );
+                $found_ids = $query->posts;
+                $post_id   = array_shift( $found_ids ); // Keep the first one
+
+                // Update existing post
+                $post_args = [
+                    'ID'           => $post_id,
+                    'post_title'   => $title,
+                    'post_content' => $post_content,
+                    'post_status'  => 'publish',
+                ];
+                wp_update_post( $post_args );
+
+                // Delete duplicates if any
+                if ( ! empty( $found_ids ) ) {
+                    foreach ( $found_ids as $duplicate_id ) {
+                        wp_delete_post( $duplicate_id, true );
+                    }
+                }
+            } else {
+                // Insert new post
+                $post_args = [
+                    'post_title'   => $title,
+                    'post_type'    => 'sr_job',
+                    'post_status'  => 'publish',
+                    'post_content' => $post_content,
+                ];
+                $post_id = wp_insert_post( $post_args );
             }
 
-            $post_args = [
-                'post_title'   => $title,
-                'post_type'    => 'sr_job',
-                'post_status'  => 'publish',
-                'post_content' => $post_content,
-            ];
-            $post_id = wp_insert_post( $post_args );
-            if ( is_wp_error( $post_id ) ) continue;
+            if ( is_wp_error( $post_id ) || ! $post_id ) continue;
 
             // ✅ Metas
             update_post_meta( $post_id, '_srji_ref', $external_id );
