@@ -17,7 +17,7 @@ class SR_Admin_UI {
      */
     public function enqueue_assets() {
         wp_enqueue_style('sr-admin-style', plugin_dir_url(__FILE__) . 'css/admin-style.css');
-        wp_enqueue_script('sr-admin-js', plugin_dir_url(__FILE__) . 'js/admin.js', ['jquery'], false, true);
+        wp_enqueue_script('sr-admin-js', plugin_dir_url(__FILE__) . 'js/admin.js', ['jquery'], '1.0.1', true);
         wp_localize_script('sr-admin-js', 'srjiAjax', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('srji_nonce')
